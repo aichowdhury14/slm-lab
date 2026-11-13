@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TaxBot · Offline</title>
+<style>
+  :root {
+    --bg: #f6f4ef; --panel: #ffffff; --ink: #1d2433; --muted: #5d6576; --line: #e2ded4;
+    --accent: #0f5c4d; --accent-ink: #ffffff; --soft: #e7f1ee; --warn: #8a5a00; --user: #1d2433;
+    font-family: "Segoe UI", "Nirmala UI", "Noto Sans Bengali", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #12151b; --panel: #1b2029; --ink: #e8eaee; --muted: #9aa3b2; --line: #2c3340;
+            --accent: #4fc0a6; --accent-ink: #0b1714; --soft: #1d2e2b; --warn: #e2b04a; --user: #2a3140; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); line-height: 1.55; }
+  header { padding: 20px 16px 8px; max-width: 820px; margin: 0 auto; display: flex; gap: 12px;
+           align-items: baseline; justify-content: space-between; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 22px; letter-spacing: -0.01em; }
+  h1 span { color: var(--muted); font-weight: 400; font-size: 15px; margin-left: 6px; }
+  select { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 8px;
+           padding: 6px 8px; font: inherit; font-size: 14px; }
+  .opts { display: flex; gap: 14px; align-items: center; font-size: 14px; color: var(--muted); }
+  .opts input { accent-color: var(--accent); vertical-align: -2px; }
+  main { max-width: 820px; margin: 0 auto; padding: 0 16px 160px; }
+  .intro { color: var(--muted); font-size: 14px; margin: 4px 0 14px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+  .chip { background: var(--panel); border: 1px solid var(--line); color: var(--ink); border-radius: 999px;
+          padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; text-align: left; }
+  .chip:hover { border-color: var(--accent); }
+  .msg { margin: 14px 0; }
+  .user { background: var(--user); color: #fff; padding: 10px 14px; border-radius: 14px 14px 4px 14px;
+          margin-left: auto; max-width: 85%; width: fit-content; }
+  .bot { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+  .answer p { margin: 0 0 8px; } .answer ul { margin: 0 0 8px; padding-left: 20px; }
+  .thinking { color: var(--muted); font-size: 14px; }
+  .calc { background: var(--soft); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; font-size: 14px; }
+  .calc .big { font-size: 20px; font-weight: 650; color: var(--accent); }
+  .calc table { width: 100%; border-collapse: collapse; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .calc td { padding: 3px 0; border-top: 1px solid var(--line); } .calc td:last-child { text-align: right; }
+  .note { color: var(--warn); font-size: 13px; margin-top: 6px; }
+  details { margin-top: 10px; font-size: 13px; color: var(--muted); }
+  details li { margin: 2px 0; }
+  .stats { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  form { position: fixed; left: 0; right: 0; bottom: 0; background: linear-gradient(transparent, var(--bg) 30%);
+         padding: 24px 16px 18px; }
+  .bar { max-width: 820px; margin: 0 auto; display: flex; gap: 8px; }
+  textarea { flex: 1; resize: none; font: inherit; font-size: 15px; padding: 12px 14px; border-radius: 12px;
+             border: 1px solid var(--line); background: var(--panel); color: var(--ink); min-height: 50px; }
+  textarea:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button.send { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 12px;
+                padding: 0 18px; font: inherit; font-weight: 600; cursor: pointer; }
+  button.send:disabled { opacity: .5; cursor: wait; }
+  .foot { text-align: center; font-size: 12px; color: var(--muted); max-width: 820px; margin: 8px auto 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>TaxBot <span>Bangladesh salary tax · runs offline</span></h1>
+  <div class="opts">
+    <label title="By default the calculator writes the explanation instantly. Tick this to have the model write it (slower).">
+      <input type="checkbox" id="explain"> AI explanation</label>
+    <label>Model <select id="model"></select></label>
+  </div>
+</header>
+<main>
+  <p class="intro">Ask in English or বাংলা. A small language model on this PC reads your question; a tested calculator does the maths (Finance Act 2026).</p>
+  <div class="chips" id="chips"></div>
+  <div id="log"></div>
+</main>
+<form id="form">
+  <div class="bar">
+    <textarea id="q" rows="1" placeholder="e.g. My salary is 80k a month with 2 bonuses of 40k. How much tax?"></textarea>
+    <button class="send" id="send">Ask</button>
+  </div>
+  <div class="foot">Estimates only. Verify with nbr.gov.bd or a tax practitioner before filing.</div>
+</form>
+<script>
+const EXAMPLES = [
+  "My salary is 80k a month. How much income tax do I pay?",
+  "আমার মাসিক বেতন ৫০ হাজার টাকা, কত কর দিতে হবে?",
+  "I'm a woman earning 1.2 lakh per month and invested 2 lakh in savings certificates. My tax?",
+  "What is the tax-free income limit for 2026-27?",
+  "রিটার্ন জমার শেষ তারিখ কবে?",
+  "How does the investment rebate work?",
+];
+const $ = (id) => document.getElementById(id);
+const tk = (n) => "Tk " + Math.round(n).toLocaleString("en-IN");
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function md(text) {  // just enough Markdown for short answers: paragraphs, bullets, bold
+  const html = [];
+  let list = false;
+  for (const raw of esc(text.trim()).split("\n")) {
+    const line = raw.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+    const bullet = line.match(/^\s*(?:[-*•]|\d+\.)\s+(.*)/);
+    if (bullet) { if (!list) { html.push("<ul>"); list = true; } html.push(`<li>${bullet[1]}</li>`); continue; }
+    if (list) { html.push("</ul>"); list = false; }
+    if (line.trim()) html.push(`<p>${line}</p>`);
+  }
+  if (list) html.push("</ul>");
+  return html.join("");
+}
+
+function calcCard(calc) {
+  const r = calc.result, rows = [
+    ["Annual gross salary", r.gross], ["Salary exemption", -r.exemption], ["Taxable income", r.taxable_income],
+    ["Tax-free threshold", r.threshold],
+    ...r.slab_lines.map((l) => [`${+(l.rate * 100).toFixed(1)}% on ${tk(l.amount)}`, l.tax]),
+    ["Tax before rebate", r.gross_tax],
+  ];
+  if (r.rebate) rows.push(["Investment rebate", -r.rebate]);
+  const notes = [...calc.assumptions];
+  if (r.minimum_tax_applied) notes.push("Minimum tax applies.");
+  if (!r.rebate && r.max_rebate) notes.push(`Investing ${tk(r.investment_for_max_rebate)} could save up to ${tk(r.max_rebate)}.`);
+  return `<div class="calc">
+    <div>Estimated tax for the year</div>
+    <div class="big">${tk(r.net_tax)} <small>≈ ${tk(r.net_tax / 12)}/month · ${(r.effective_rate * 100).toFixed(1)}% effective</small></div>
+    <table>${rows.map(([k, v]) => `<tr><td>${k}</td><td>${v < 0 ? "− " + tk(-v) : tk(v)}</td></tr>`).join("")}</table>
+    ${notes.map((n) => `<div class="note">${esc(n)}</div>`).join("")}
+  </div>`;
+}
+
+async function ask(question) {
+  $("chips").hidden = true;
+  $("log").insertAdjacentHTML("beforeend", `<div class="msg user">${esc(question)}</div>`);
+  const box = document.createElement("div");
+  box.className = "msg bot";
+  box.innerHTML = `<div class="thinking">Reading your question… (first answer after start-up is slow while the model loads)</div>`;
+  $("log").append(box);
+  box.scrollIntoView({ behavior: "smooth", block: "end" });
+  $("send").disabled = true;
+
+  let text = "", head = "", sources = "";
+  const t0 = performance.now();
+  try {
+    const res = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" },
+                                          body: JSON.stringify({ question, model: $("model").value,
+                                                                 explain: $("explain").checked }) });
+    const reader = res.body.getReader(), dec = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop();
+      for (const line of lines.filter(Boolean)) {
+        const ev = JSON.parse(line);
+        if (ev.type === "meta") {
+          head = ev.calc ? calcCard(ev.calc) : "";
+          sources = `<details><summary>Sources used</summary><ol>${ev.sources.map((s) =>
+            `<li>${esc(s.heading)} <small>(${esc(s.source)}${s.score == null ? "" : `, match ${s.score}`})</small></li>`).join("")}</ol></details>`;
+          box.innerHTML = head + `<div class="thinking">Writing the answer…</div>`;
+        } else if (ev.type === "token") {
+          text += ev.text;
+          box.innerHTML = head + `<div class="answer">${md(text)}</div>`;
+        } else if (ev.type === "error") {
+          box.innerHTML = head + `<div class="answer">${md(text)}</div><div class="note">${esc(ev.message)}</div>`;
+        } else if (ev.type === "done") {
+          const a = ev.stats.answer, x = ev.stats.extract, secs = ((performance.now() - t0) / 1000).toFixed(1);
+          const how = a ? `${esc(a.model)} wrote the answer · ${a.tokens_per_second} tokens/s`
+                        : `${esc(x.model)} read the question · calculator wrote the answer`;
+          box.innerHTML = head + `<div class="answer">${md(text)}</div>` + sources +
+            `<div class="stats">${how} · ${secs}s total</div>`;
+        }
+      }
+    }
+  } catch (e) {
+    box.innerHTML = `<div class="note">Couldn't reach the model: ${esc(String(e))}. Is Ollama running?</div>`;
+  }
+  $("send").disabled = false;
+  box.scrollIntoView({ behavior: "smooth", block: "end" });
+}
+
+$("form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const q = $("q").value.trim();
+  if (q && !$("send").disabled) { $("q").value = ""; ask(q); }
+});
+$("q").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("form").requestSubmit(); }
+});
+$("chips").innerHTML = EXAMPLES.map((q) => `<button type="button" class="chip">${esc(q)}</button>`).join("");
+$("chips").addEventListener("click", (e) => { if (e.target.classList.contains("chip")) ask(e.target.textContent); });
+fetch("/api/models").then((r) => r.json()).then(({ default: def, models }) => {
+  $("model").innerHTML = models.map((m) => `<option ${m === def ? "selected" : ""}>${esc(m)}</option>`).join("");
+});
+</script>
+</body>
+</html>
